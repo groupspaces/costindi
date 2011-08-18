@@ -210,7 +210,7 @@ class Text_Diff {
      */
     function trimNewlines(&$line, $key)
     {
-        $line = str_replace(array("\n", "\r"), '', $line);
+        #$line = str_replace(array("\n", "\r"), '', $line);
     }
 
     /**
