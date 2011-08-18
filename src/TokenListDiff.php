@@ -131,7 +131,7 @@ class TokenListDiff
 			if (is_array($entry) && $entry[0] == T_WHITESPACE) {
 				if ($context != 'whitespace') {
 					// accumulated non-whitespace, just add
-					$results[] =  new Text_Diff_Op_add(array(), $accumulator);
+					$results[] =  new Text_Diff_Op_add($accumulator);
 					$accumulator = array();
 					$context = 'whitespace';
 				}
@@ -155,7 +155,7 @@ class TokenListDiff
 				$results[] =  new Text_Diff_Op_copy($accumulator);
 			} else {
 				// accumulated non-whitespace, just add
-				$results[] =  new Text_Diff_Op_add(array(), $accumulator);
+				$results[] =  new Text_Diff_Op_add($accumulator);
 			}
 		}
 
