@@ -12,6 +12,10 @@ class MyClass {
 <p>Destroying whitespace...</p>
 	<p>IN PORGRESS</p>
 <?php
+	/**
+	 * some big comment
+	 * with stuff in it
+	 */
 	}
 
 	/*
