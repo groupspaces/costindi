@@ -67,9 +67,32 @@ class TokenListDiff
 		foreach ($tokens as $token) {
 			if (is_array($token)) {
 				unset($token[2]);
-			}
 
-			$results[] = serialize($token);
+				if ($token[0] == T_DOC_COMMENT) {
+					$token[0] = T_COMMENT;
+				}
+
+				if ($token[0] != T_WHITESPACE && strpos($token[1], "\n") !== false) {
+					$split = explode("\n", $token[1]);
+					$c = count($split);
+					for ($i = 0; $i < $c; $i++) {
+						if (preg_match("/^(\s+)(\S.*)/", $split[$i], $matches)) {
+							$results[] = serialize(array(T_WHITESPACE, $matches[1]));
+							$results[] = serialize(array($token[0], $matches[2]));
+						} else {
+							$results[] = serialize(array($token[0], $split[$i]));
+						}
+
+						if ($i != $c - 1) {
+							$results[] = serialize(array(T_WHITESPACE, "\n"));
+						}
+					}
+				} else {
+					$results[] = serialize($token);
+				}
+			} else {
+				$results[] = serialize($token);
+			}
 		}
 
 		return $results;
