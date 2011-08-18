@@ -4,6 +4,10 @@ require_once(dirname(__DIR__).'/lib/pear/Text/Diff.php');
 
 /**
  * A class for obtaining the difference between two token lists.
+ *
+ * @author   Mark Schaschke (@epitomus)
+ * @author   David Ingram   (@dmi)
+ * @package  Costindi
  */
 class TokenListDiff
 {
