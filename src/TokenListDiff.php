@@ -117,49 +117,13 @@ class TokenListDiff
 
 	protected static function postProcessDiffAdd(array $final)
 	{
-		$results = array();
-
-		if (is_array($final[0]) && $final[0][0] == T_WHITESPACE) {
-			$context = 'whitespace';
-		} else {
-			$context = 'nonwhitespace';
-		}
-
-		$accumulator = array();
-
 		foreach ($final as $entry) {
-			if (is_array($entry) && $entry[0] == T_WHITESPACE) {
-				if ($context != 'whitespace') {
-					// accumulated non-whitespace, just add
-					$results[] =  new Text_Diff_Op_add($accumulator);
-					$accumulator = array();
-					$context = 'whitespace';
-				}
-
-				$accumulator[] = $entry;
-			} else {
-				if ($context != 'nonwhitespace') {
-					// accumulated whitespace adds, convert to a copy
-					$results[] =  new Text_Diff_Op_copy($accumulator);
-					$accumulator = array();
-					$context = 'nonwhitespace';
-				}
-
-				$accumulator[] = $entry;
+			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+				return array(new Text_Diff_Op_add($final));
 			}
 		}
 
-		if (!empty($accumulator)) {
-			if ($context == 'whitespace') {
-				// accumulated whitespace adds, convert to a copy
-				$results[] =  new Text_Diff_Op_copy($accumulator);
-			} else {
-				// accumulated non-whitespace, just add
-				$results[] =  new Text_Diff_Op_add($accumulator);
-			}
-		}
-
-		return $results;
+		return array(new Text_Diff_Op_copy($final));
 	}
 
 	protected static function postProcessDiffDelete($orig)
