@@ -11,8 +11,8 @@ class MyClass
 			exit;
 		}
 ?>
-<p>Destroying whitespace...</p>
-<p>IN PROGRESS</p>
+	<p>Destroying whitespace...</p>
+	<p>IN PROGRESS</p>
 <?php
 	}
 
