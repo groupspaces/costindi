@@ -60,23 +60,37 @@ class TokenListDiff
 		$this->setString2(file_get_contents($v));
 	}
 
+	/**
+	 * Convert token array into diffable format:
+	 * - discard line numbers
+	 * - convert DOC_COMMENT into COMMENT
+	 * - explode multi-line tokens (eg comments, text) into multiple, single-line tokens
+	 * - serialise each token (as some are arrays)
+	 *
+	 * @param array $tokens Array of input tokens to serialize
+	 * @return array
+	 */
 	protected static function formatTokens(array $tokens)
 	{
 		$results = array();
 
 		foreach ($tokens as $token) {
 			if (is_array($token)) {
+				// discard line number from the tokenizer, not useful for diff
 				unset($token[2]);
 
+				// we don't care about the difference between these
 				if ($token[0] == T_DOC_COMMENT) {
 					$token[0] = T_COMMENT;
 				}
 
 				if ($token[0] != T_WHITESPACE && strpos($token[1], "\n") !== false) {
+					// multi-line, non-whitespace token, need to convert into multiple, single line tokens
 					$split = explode("\n", $token[1]);
 					$c = count($split);
 					for ($i = 0; $i < $c; $i++) {
 						if (preg_match("/^(\s+)(\S.*)/", $split[$i], $matches)) {
+							// handle leading whitespace
 							$results[] = serialize(array(T_WHITESPACE, $matches[1]));
 							$results[] = serialize(array($token[0], $matches[2]));
 						} else {
@@ -84,13 +98,16 @@ class TokenListDiff
 						}
 
 						if ($i != $c - 1) {
+							// restore newlines lost by explode()ing
 							$results[] = serialize(array(T_WHITESPACE, "\n"));
 						}
 					}
 				} else {
+					// single line or whitespace token
 					$results[] = serialize($token);
 				}
 			} else {
+				// non-identified token (single char, eg braces)
 				$results[] = serialize($token);
 			}
 		}
