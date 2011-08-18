@@ -60,12 +60,19 @@ class TokenListDiff
 		$this->setString2(file_get_contents($v));
 	}
 
-	protected static function formatToken($token)
+	protected static function formatTokens(array $tokens)
 	{
-		if (is_array($token)) {
-			unset($token[2]);
+		$results = array();
+
+		foreach ($tokens as $token) {
+			if (is_array($token)) {
+				unset($token[2]);
+			}
+
+			$results[] = serialize($token);
 		}
-		return serialize($token);
+
+		return $results;
 	}
 
 	/**
@@ -79,8 +86,9 @@ class TokenListDiff
 		if (!is_array($this->tokens1) || !is_array($this->tokens2)) {
 			throw new InvalidArgumentException('You need to set the inputs first');
 		}
-		$tokens1 = array_map(array(__CLASS__, 'formatToken'), $this->tokens1);
-		$tokens2 = array_map(array(__CLASS__, 'formatToken'), $this->tokens2);
+		$tokens1 = self::formatTokens($this->tokens1);
+		$tokens2 = self::formatTokens($this->tokens2);
+
 		$differ = new Text_Diff('native', array($tokens1, $tokens2));
 		return $differ->getDiff();
 	}
