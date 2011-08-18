@@ -175,7 +175,75 @@ class TokenListDiff
 
 	protected static function postProcessDiffChange($diff)
 	{
-		return array($diff);
+		$results = array();
+
+		if (is_array($diff->final[0]) && $diff->final[0][0] == T_WHITESPACE && is_array($diff->orig[0]) && $diff->orig[0][0] == T_WHITESPACE) {
+			$context = 'whitespace';
+		} else {
+			$context = 'nonwhitespace';
+		}
+
+		$origAccumulator = array();
+		$finalAccumulator = array();
+
+		$iter = max(count($diff->final), count($diff->orig));
+
+		for ($i = 0; $i < $iter; $i++) {
+			if (isset($diff->final[$i]) && isset($diff->orig[$i])) {
+				$orig = $diff->orig[$i];
+				$final = $diff->final[$i];
+
+				if (is_array($final) && $final[0] == T_WHITESPACE && is_array($orig) && $orig[0] == T_WHITESPACE) {
+					if ($context != 'whitespace') {
+						// accumulated non-whitespace, keep the change
+						$results[] =  new Text_Diff_Op_change($origAccumulator, $finalAccumulator);
+
+						$origAccumulator = array();
+						$finalAccumulator = array();
+
+						$context = 'whitespace';
+					}
+
+					$origAccumulator[] = $orig;
+					$finalAccumulator[] = $final;
+				} else {
+					if ($context != 'nonwhitespace') {
+						// accumulated whitespace changes, convert to a copy of the final only
+						$results[] =  new Text_Diff_Op_copy($finalAccumulator);
+						$origAccumulator = array();
+						$finalAccumulator = array();
+
+						$context = 'nonwhitespace';
+					}
+
+					$origAccumulator[] = $orig;
+					$finalAccumulator[] = $final;
+				}
+			} else {
+				// final and orig arrays are not equal length, deal with them outside the loop
+				break;
+			}
+		}
+
+		// doesn't matter which accumulator we check, they are in sync
+		if (!empty($origAccumulator)) {
+			if ($context == 'whitespace') {
+				// accumulated whitespace changes, convert to a copy of the final only
+				$results[] =  new Text_Diff_Op_copy($finalAccumulator);
+			} else {
+				// accumulated non-whitespace, keep the change
+				$results[] =  new Text_Diff_Op_change($origAccumulator, $finalAccumulator);
+			}
+		}
+
+		// process any trailing final or orig entries and convert to simple adds or deletes
+		if (isset($diff->final[$i])) {
+			$results[] = new Text_Diff_Op_add(array_slice($diff->final, $i));
+		} elseif (isset($diff->orig[$i])) {
+			$results[] = new Text_Diff_Op_delete(array_slice($diff->orig, $i));
+		}
+
+		return $results;
 	}
 
 	public static function postprocessDiff(array $diffs)
