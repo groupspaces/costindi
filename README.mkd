@@ -1,0 +1,5 @@
+## Costindi ##
+
+The COde STandard INsensitive DIff tool.
+
+**TODO:** improve README.
