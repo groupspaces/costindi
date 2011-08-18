@@ -17,6 +17,12 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	/** @var  integer  Number of trailing context "lines" to preserve. */
 	public $_trailing_context_lines = 10000;
 
+	protected $_colours = array(
+		'RED' => "\033[1;31m",
+		'GREEN' => "\033[1;32m",
+	);
+	protected $_reset = "\033[m";
+
 	function _lines($final, $prefix = ' ', $encode = true)
 	{
 		$res = '';
@@ -39,7 +45,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 			if (is_array($data)) {
 				$data = $data[1];
 			}
-			$res .= /*chr(27) . $_colours['GREEN'] .*/ $data/* . $_reset*/;
+			$res .= $this->_colours['GREEN'] . $data . $this->_reset;
 		}
 
 		return $res/* . '+++|'*/;
@@ -53,7 +59,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 			if (is_array($data)) {
 				$data = $data[1];
 			}
-			$res .= /* chr(27) . $_colours['RED'] .*/ $data /*. $_reset*/;
+			$res .= $this->_colours['RED'] . $data . $this->_reset;
 		}
 
 		return $res/* . '---|'*/;
