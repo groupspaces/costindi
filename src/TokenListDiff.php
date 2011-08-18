@@ -115,6 +115,101 @@ class TokenListDiff
 		return $results;
 	}
 
+	protected static function postProcessDiffAdd(array $final)
+	{
+		$results = array();
+
+		if (is_array($final[0]) && $final[0][0] == T_WHITESPACE) {
+			$context = 'whitespace';
+		} else {
+			$context = 'nonwhitespace';
+		}
+
+		$accumulator = array();
+
+		foreach ($final as $entry) {
+			if (is_array($entry) && $entry[0] == T_WHITESPACE) {
+				if ($context != 'whitespace') {
+					// accumulated non-whitespace, just add
+					$results[] =  new Text_Diff_Op_add(array(), $accumulator);
+					$accumulator = array();
+					$context = 'whitespace';
+				}
+
+				$accumulator[] = $entry;
+			} else {
+				if ($context != 'nonwhitespace') {
+					// accumulated whitespace adds, convert to a copy
+					$results[] =  new Text_Diff_Op_copy($accumulator);
+					$accumulator = array();
+					$context = 'nonwhitespace';
+				}
+
+				$accumulator[] = $entry;
+			}
+		}
+
+		if (!empty($accumulator)) {
+			if ($context == 'whitespace') {
+				// accumulated whitespace adds, convert to a copy
+				$results[] =  new Text_Diff_Op_copy($accumulator);
+			} else {
+				// accumulated non-whitespace, just add
+				$results[] =  new Text_Diff_Op_add(array(), $accumulator);
+			}
+		}
+
+		return $results;
+	}
+
+	protected static function postProcessDiffDelete($orig)
+	{
+		foreach ($orig as $entry) {
+			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+				return array(new Text_Diff_Op_delete($orig));
+			}
+		}
+
+		return array();
+	}
+
+	protected static function postProcessDiffChange($diff)
+	{
+		return array($diff);
+	}
+
+	public static function postprocessDiff(array $diffs)
+	{
+		$results = array();
+
+		foreach ($diffs as $diff) {
+			if (is_array($diff->orig)) {
+				$diff->orig = array_map('unserialize', $diff->orig);
+			}
+
+			if (is_array($diff->final)) {
+				$diff->final = array_map('unserialize', $diff->final);
+			}
+
+			switch (get_class($diff)) {
+				case 'Text_Diff_Op_copy':
+					$results[] = $diff;
+					break;
+				case 'Text_Diff_Op_add':
+					$results = array_merge($results, self::postProcessDiffAdd($diff->final));
+					break;
+				case 'Text_Diff_Op_delete':
+					$results = array_merge($results, self::postProcessDiffDelete($diff->orig));
+					break;
+				case 'Text_Diff_Op_change':
+					$results = array_merge($results, self::postProcessDiffChange($diff));
+					break;
+			}
+		}
+
+		return $results;
+	}
+
 	/**
 	 * Generate the difference between the token arrays, and return an array of
 	 * Text_Diff_Op_* objects
@@ -130,7 +225,7 @@ class TokenListDiff
 		$tokens2 = self::formatTokens($this->tokens2);
 
 		$differ = new Text_Diff('native', array($tokens1, $tokens2));
-		return $differ->getDiff();
-	}
 
+		return self::postprocessDiff($differ->getDiff());
+	}
 }
