@@ -1,4 +1,5 @@
 <?php
+
 require_once(dirname(__DIR__).'/lib/pear/Text/Diff.php');
 
 /**
@@ -6,8 +7,10 @@ require_once(dirname(__DIR__).'/lib/pear/Text/Diff.php');
  */
 class TokenListDiff
 {
-	protected $tokens1;
-	protected $tokens2;
+	/** @var  array  $tokensOrig  Original set of tokens */
+	protected $tokensOrig = array();
+	/** @var  array  $tokensFinal  Final set of tokens */
+	protected $tokensFinal = array();
 
 	/**
 	 * Constructor.
@@ -16,48 +19,81 @@ class TokenListDiff
 	 * two strings are given, both are treated as files, which are opened and
 	 * tokenised. If two arrays are given, both are treated as lists of tokens
 	 * obtained from the tokenizer.
+	 *
+	 * @param  array|string  Original tokens or files
+	 * @param  array|string  Final tokens or files
 	 */
 	public function __construct($arg1 = null, $arg2 = null)
 	{
 		if (is_string($arg1) && is_string($arg2)) {
-			$this->setFile1($arg1);
-			$this->setFile2($arg2);
+			$this->setFileOrig($arg1);
+			$this->setFileFinal($arg2);
 		} elseif (is_array($arg1) && is_array($arg2)) {
-			$this->setTokens1($arg1);
-			$this->setTokens2($arg2);
+			$this->setTokensOrig($arg1);
+			$this->setTokensFinal($arg2);
 		} elseif ($arg1 !== null || $arg2 !== null) {
 			throw new InvalidArgumentException('Expected: either zero or two arguments, both of the same type (string or array)');
 		}
 	}
 
-	public function setTokens1(array $v)
+	/**
+	 * Set the original tokens
+	 *
+	 * @param  array  $tokens  Tokens from the original source
+	 */
+	public function setTokensOrig(array $tokens)
 	{
-		$this->tokens1 = $v;
+		$this->tokensOrig = $tokens;
 	}
 
-	public function setTokens2(array $v)
+	/**
+	 * Set the final tokens
+	 *
+	 * @param  array  $tokens  Tokens from the final source
+	 */
+	public function setTokensFinal(array $tokens)
 	{
-		$this->tokens2 = $v;
+		$this->tokensFinal = $tokens;
 	}
 
-	public function setString1($v)
+	/**
+	 * Set the original tokens from a string
+	 *
+	 * @param  string  $str  String from the original source
+	 */
+	public function setStringOrig($str)
 	{
-		$this->setTokens1(token_get_all($v));
+		$this->setTokensOrig(token_get_all($str));
 	}
 
-	public function setString2($v)
+	/**
+	 * Set the final tokens from a string
+	 *
+	 * @param  string  $str  String from the final source
+	 */
+	public function setStringFinal($str)
 	{
-		$this->setTokens2(token_get_all($v));
+		$this->setTokensFinal(token_get_all($str));
 	}
 
-	public function setFile1($v)
+	/**
+	 * Set the original tokens from file
+	 *
+	 * @param  string  $filename  Filename for the original source
+	 */
+	public function setFileOrig($filename)
 	{
-		$this->setString1(file_get_contents($v));
+		$this->setStringOrig(file_get_contents($filename));
 	}
 
-	public function setFile2($v)
+	/**
+	 * Set the final tokens from file
+	 *
+	 * @param  string  $filename  Filename for the final source
+	 */
+	public function setFileFinal($filename)
 	{
-		$this->setString2(file_get_contents($v));
+		$this->setStringFinal(file_get_contents($filename));
 	}
 
 	/**
@@ -67,8 +103,8 @@ class TokenListDiff
 	 * - explode multi-line tokens (eg comments, text) into multiple, single-line tokens
 	 * - serialise each token (as some are arrays)
 	 *
-	 * @param array $tokens Array of input tokens to serialize
-	 * @return array
+	 * @param   array  $tokens  Array of input tokens to serialize
+	 * @return  array  Text_Diff_Op objects
 	 */
 	protected static function formatTokens(array $tokens)
 	{
@@ -115,32 +151,64 @@ class TokenListDiff
 		return $results;
 	}
 
+	/**
+	 * Process a collection of diff adds
+	 * - if they are all white-space changes we translate them to a copy
+	 * - otherwise leave unchanged as an add
+	 *
+	 * @param   array  $final  Array of input tokens to process
+	 * @return  array  Text_Diff_Op objects
+	 */
 	protected static function postProcessDiffAdd(array $final)
 	{
 		foreach ($final as $entry) {
 			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+				// found a non-whitespace add, can't translate
 				return array(new Text_Diff_Op_add($final));
 			}
 		}
 
+		// all whitespace adds, make it a copy
 		return array(new Text_Diff_Op_copy($final));
 	}
 
-	protected static function postProcessDiffDelete($orig)
+	/**
+	 * Process a collection of diff deletes
+	 * - if they are all white-space changes we throw them away
+	 * - otherwise leave unchanged as a delete
+	 *
+	 * @param   array  $orig  Array of input tokens to process
+	 * @return  array of Text_Diff_Op objects
+	 */
+	protected static function postProcessDiffDelete(array $orig)
 	{
 		foreach ($orig as $entry) {
 			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+				// found a non-whitespace delete, can't translate
 				return array(new Text_Diff_Op_delete($orig));
 			}
 		}
 
+		// all whitespace deletes, discard
 		return array();
 	}
 
-	protected static function postProcessDiffChange($diff)
+	/**
+	 * Process a collection of diff changes
+	 * - use 2 accumulators, one for pre-change (orig), one for post-change (final)
+	 * - incoming and outgoing changes can be different lengths (eg 2 adds, 3 deletes)
+	 * - interleave adds and deletes while we have both
+	 * - handle outstanding accumulated changes when we run out of matching incoming and outgoing changes
+	 * - handle outstanding trailing changes in either orig or final
+	 *
+	 * @param   Text_Diff_Op_change  $orig
+	 * @return  array  Text_Diff_Op objects
+	 */
+	protected static function postProcessDiffChange(Text_Diff_Op_change $diff)
 	{
 		$results = array();
 
+		// determine initial context
 		if (is_array($diff->final[0]) && $diff->final[0][0] == T_WHITESPACE && is_array($diff->orig[0]) && $diff->orig[0][0] == T_WHITESPACE) {
 			$context = 'whitespace';
 		} else {
@@ -150,6 +218,7 @@ class TokenListDiff
 		$origAccumulator = array();
 		$finalAccumulator = array();
 
+		// we try as
 		$iter = max(count($diff->final), count($diff->orig));
 
 		for ($i = 0; $i < $iter; $i++) {
@@ -210,6 +279,12 @@ class TokenListDiff
 		return $results;
 	}
 
+	/**
+	 * Process an array of diffs in a white-space and code-style agnostic way
+	 *
+	 * @param   array $diffs  Text_Diff_Op objects
+	 * @return  array         Text_Diff_Op objects
+	 */
 	public static function postprocessDiff(array $diffs)
 	{
 		$results = array();
@@ -246,17 +321,17 @@ class TokenListDiff
 	 * Generate the difference between the token arrays, and return an array of
 	 * Text_Diff_Op_* objects
 	 *
-	 * @return array
+	 * @return  array  Text_Diff_Op objects
 	 */
 	public function getDiff()
 	{
-		if (!is_array($this->tokens1) || !is_array($this->tokens2)) {
+		if (!is_array($this->tokensOrig) || !is_array($this->tokensFinal)) {
 			throw new InvalidArgumentException('You need to set the inputs first');
 		}
-		$tokens1 = self::formatTokens($this->tokens1);
-		$tokens2 = self::formatTokens($this->tokens2);
+		$tokensOrig = self::formatTokens($this->tokensOrig);
+		$tokensFinal = self::formatTokens($this->tokensFinal);
 
-		$differ = new Text_Diff('native', array($tokens1, $tokens2));
+		$differ = new Text_Diff('native', array($tokensOrig, $tokensFinal));
 
 		return self::postprocessDiff($differ->getDiff());
 	}
