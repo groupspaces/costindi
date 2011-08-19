@@ -63,11 +63,11 @@ class ConsoleColour
 
 	public static function mapRgbColour(array $colour)
 	{
-		list($red, $green, $blue) = array_map(function($v) {return intval($v / 51.2);}, $colour);
+		list($red, $green, $blue) = array_map(function($v) {return round($v / 51.2);}, $colour);
 
 		if ($red == $green && $green == $blue) {
 			// grayscale, map to 24 specific grayscale colours
-			list($red, $green, $blue) = array_map(function($v) {return intval($v / 10.66);}, $colour);
+			list($red, $green, $blue) = array_map(function($v) {return round($v / 10.66);}, $colour);
 			$level = intval(($red + $green + $blue) / 3);
 
 			return $level + 232;
