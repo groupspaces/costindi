@@ -133,7 +133,7 @@ class TokenListDiff
 							// handle leading whitespace
 							$results[] = serialize(array(T_WHITESPACE, $matches[1]));
 							$results[] = serialize(array($token[0], $matches[2]));
-						} else {
+						} elseif ($split[$i] !== '') {
 							$results[] = serialize(array($token[0], $split[$i]));
 						}
 
