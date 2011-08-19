@@ -1,6 +1,9 @@
 <?php
 
 require_once(dirname(dirname(__DIR__)) . '/lib/pear/Text/Diff/Renderer.php');
+require_once(dirname(dirname(__DIR__)) . '/src/ConsoleColour.php');
+
+use Costindi\ConsoleColour as ConsoleColour;
 
 /**
  * Custom inline diff renderer
@@ -18,12 +21,34 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	public $_trailing_context_lines = 10000;
 
 	protected $_colours = array(
-		'RED' => "\033[1;31m",
-		'GREEN' => "\033[1;32m",
+		'ADD_FG'    => null,
+		'ADD_BG'    => array(0, 0x30, 0),
+		'DEL_FG' => null,
+		'DEL_BG' => array(0x30, 0, 0)
 	);
-	protected $_reset = "\033[m";
 
-	function _lines($final, $prefix = ' ', $encode = true)
+	protected $colour = array('ADD' => null, 'DEL' => null);
+	protected $reset = null;
+
+	protected function getColour($index)
+	{
+		if (!$this->colour[$index]) {
+			$this->colour[$index] = ConsoleColour::create($this->_colours[$index . '_FG'], $this->_colours[$index . '_BG']);
+		}
+
+		return $this->colour[$index];
+	}
+
+	protected function getReset()
+	{
+		if (!$this->reset) {
+			$this->reset = ConsoleColour::reset();
+		}
+
+		return $this->reset;
+	}
+
+	public function _lines($final, $prefix = ' ', $encode = true)
 	{
 		$res = '';
 
@@ -34,39 +59,39 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 			$res .= $data;
 		}
 
-		return $res . '';
+		return $res;
 	}
 
-	function _added($final)
+	public function _processed($lines, $action)
 	{
 		$res = '';
 
-		foreach ($final as $data) {
+		$colour = $this->getColour($action);
+		$reset = $this->getReset();
+
+		foreach ($lines as $data) {
 			if (is_array($data)) {
 				$data = $data[1];
 			}
-			$res .= $this->_colours['GREEN'] . $data . $this->_reset;
+
+			$res .= $colour . str_replace("\n", $reset . "\n" . $colour, $data) . $reset;
 		}
 
-		return $res/* . '+++|'*/;
+		return $res;
 	}
 
-	function _deleted($orig, $words = false)
+	public function _added($final)
 	{
-		$res = ''/*'|---'*/;
-
-		foreach ($orig as $data) {
-			if (is_array($data)) {
-				$data = $data[1];
-			}
-			$res .= $this->_colours['RED'] . $data . $this->_reset;
-		}
-
-		return $res/* . '---|'*/;
+		return $this->_processed($final, 'ADD');
 	}
 
-	function _changed($orig, $final)
+	public function _deleted($orig)
 	{
-		return /*'|===' . */$this->_deleted($orig) . $this->_added($final)/* . '===|'*/;
+		return $this->_processed($orig, 'DEL');
+	}
+
+	public function _changed($orig, $final)
+	{
+		return $this->_deleted($orig) . $this->_added($final);
 	}
 }
