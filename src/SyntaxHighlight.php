@@ -17,6 +17,7 @@ class SyntaxHighlight
 			'members' => array(
 				T_ABSTRACT,
 				T_ARRAY,
+				T_AS,
 				T_BREAK,
 				T_CASE,
 				T_CATCH,
@@ -90,11 +91,37 @@ class SyntaxHighlight
 			'members' => array(
 				'{',
 				'}',
-				T_OPEN_TAG
+				T_OPEN_TAG,
+				T_CLOSE_TAG
 			),
 			'foreground' => 222,
 			'background' => null,
 			'attributes' => array()
-		)
+		),
+		'COMMENT' => array(
+			'members' => array(
+				T_COMMENT
+			),
+			'foreground' => 33,
+			'background' => null,
+			'attributes' => array()
+		),
+		'NUMBER' => array(
+			'members' => array(
+				T_DNUMBER,
+				T_LNUMBER
+			),
+			'foreground' => 174,
+			'background' => null,
+			'attributes' => array()
+		),
+		'IDENTIFIER' => array(
+			'members' => array(
+				T_STRING
+			),
+			'foreground' => 174,
+			'background' => null,
+			'attributes' => array()
+		),
 	);
 }
