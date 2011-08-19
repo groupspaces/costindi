@@ -2,7 +2,10 @@
 <?php
 
 require_once(__DIR__.'/src/TokenListDiff.php');
+require_once(__DIR__.'/src/ConsoleColour.php');
 require_once(__DIR__.'/src/Renderer/inline.php');
+
+use Costindi\ConsoleColour as ConsoleColour;
 
 array_shift($argv);
 if (count($argv) == 7) {
@@ -31,5 +34,15 @@ $d = new TokenListDiff(
 	$newfile
 );
 
-$r = new TokenListDiff_Renderer_inline();
+
+$c = popen('git config costindi.highlight', 'r');
+$highlight = trim(fgets($c, 128));
+pclose($c);
+
+$r = new TokenListDiff_Renderer_inline(array('enableSyntaxHighlighting' => ($highlight == 'true')));
+
+echo basename(__FILE__) . ' ' . $oldfile . ' ' . $newfile . PHP_EOL;
+echo $r->getColour('DEL') . '--- ' . $oldfile . ConsoleColour::reset() . PHP_EOL;
+echo $r->getColour('ADD') . '+++ ' . $newfile . ConsoleColour::reset() . PHP_EOL;
+
 echo $r->render($d);

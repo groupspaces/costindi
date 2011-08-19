@@ -22,8 +22,8 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	/** @var  integer  Number of trailing context "lines" to preserve. */
 	public $_trailing_context_lines = 10000;
 
-	/** @var  array	Colours to use to highlight adds and deletes */
-	protected $_colours = array(
+	/** @var  array	   Colours to use to highlight adds and deletes */
+	public $_colours = array(
 		'ADD_FG' => 255,
 		'ADD_BG' => 22,   // green background
 		'ADD_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
@@ -32,10 +32,12 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		'DEL_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
 	);
 
-	/** @var  array	Cache of generated console colours for adds and deletes */
+	/** @var  array	   Cache of generated console colours for adds and deletes */
 	protected $colour = array('ADD' => null, 'DEL' => null);
-	/** @var  array	Cache of generated console reset codes */
+	/** @var  array    Cache of generated console reset codes */
 	protected $reset = null;
+	/** @var  boolean  Whether to syntax highlight */
+	protected $_enableSyntaxHighlighting = false;
 
 	/**
 	 * Get the console colour for 'ADD' or 'DEL'
@@ -44,7 +46,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	 * @param   string  $index  ADD or DEL
 	 * @return  Costindi\ConsoleColour
 	 */
-	protected function getColour($index)
+	public function getColour($index)
 	{
 		if (!$this->colour[$index]) {
 			$this->colour[$index] = ConsoleColour::create($this->_colours[$index . '_FG'], $this->_colours[$index . '_BG'], $this->_colours[$index . '_ATTRIBS']);
@@ -139,18 +141,20 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $this->_deleted($orig) . $this->_added($final);
 	}
 
-	protected static function syntaxHighlight($token)
+	protected function syntaxHighlight($token)
 	{
-		foreach (SyntaxHighlight::$HIGHLIGHTS as $highlight) {
-			if (is_array($token)) {
-				if (in_array($token[0], $highlight['members'])) {
-					$token[1] = ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token[1] . ConsoleColour::reset();
+		if ($this->_enableSyntaxHighlighting) {
+			foreach (SyntaxHighlight::$HIGHLIGHTS as $highlight) {
+				if (is_array($token)) {
+					if (in_array($token[0], $highlight['members'])) {
+						$token[1] = ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token[1] . ConsoleColour::reset();
 
-					return $token;
-				}
-			} else {
-				if (in_array($token, $highlight['members'])) {
-					return  ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token . ConsoleColour::reset();
+						return $token;
+					}
+				} else {
+					if (in_array($token, $highlight['members'])) {
+						return  ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token . ConsoleColour::reset();
+					}
 				}
 			}
 		}
@@ -158,14 +162,14 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $token;
 	}
 
-	protected static function bufferCopy(array $tokens)
+	protected function bufferCopy(array $tokens)
 	{
 		$result = array();
 		$currentLine = '';
 
 		foreach ($tokens as $token) {
 			if (is_array($token)) {
-				$token = self::syntaxHighlight($token);
+				$token = $this->syntaxHighlight($token);
 
 				if ($token[1] == "\n") {
 					$result[] = $currentLine . "\n";
@@ -191,7 +195,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 					$currentLine .= $token[1];
 				}
 			} else {
-				$currentLine .= self::syntaxHighlight($token);;
+				$currentLine .= $this->syntaxHighlight($token);;
 			}
 		}
 
@@ -216,7 +220,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		foreach ($diff->getDiff() as $edit) {
 			switch (strtolower(get_class($edit))) {
 			case 'text_diff_op_copy':
-				$buffer = array_merge($buffer, self::bufferCopy($edit->orig));
+				$buffer = array_merge($buffer, $this->bufferCopy($edit->orig));
 
 				if (count($buffer) >= $this->_trailing_context_lines) {
 					foreach (array_slice($buffer, $this->_trailing_context_lines) as $line) {
