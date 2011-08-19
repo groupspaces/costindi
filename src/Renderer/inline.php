@@ -2,8 +2,10 @@
 
 require_once(dirname(dirname(__DIR__)) . '/lib/pear/Text/Diff/Renderer.php');
 require_once(dirname(dirname(__DIR__)) . '/src/ConsoleColour.php');
+require_once(dirname(dirname(__DIR__)) . '/src/SyntaxHighlight.php');
 
 use Costindi\ConsoleColour as ConsoleColour;
+use Costindi\SyntaxHighlight as SyntaxHighlight;
 
 /**
  * Custom inline diff renderer
@@ -22,10 +24,12 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 
 	/** @var  array	Colours to use to highlight adds and deletes */
 	protected $_colours = array(
-		'ADD_FG' => null,
-		'ADD_BG' => array(0, 0x30, 0),  // green background
-		'DEL_FG' => null,
-		'DEL_BG' => array(0x30, 0, 0)   // red background
+		'ADD_FG' => 255,
+		'ADD_BG' => 22,   // green background
+		'ADD_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
+		'DEL_FG' => 255,
+		'DEL_BG' => 52,   // red background
+		'DEL_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
 	);
 
 	/** @var  array	Cache of generated console colours for adds and deletes */
@@ -43,7 +47,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	protected function getColour($index)
 	{
 		if (!$this->colour[$index]) {
-			$this->colour[$index] = ConsoleColour::create($this->_colours[$index . '_FG'], $this->_colours[$index . '_BG']);
+			$this->colour[$index] = ConsoleColour::create($this->_colours[$index . '_FG'], $this->_colours[$index . '_BG'], $this->_colours[$index . '_ATTRIBS']);
 		}
 
 		return $this->colour[$index];
@@ -137,8 +141,18 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 
 	protected static function syntaxHighlight($token)
 	{
-		if ($token[0] == T_CLASS) {
-			$token[1] = ConsoleColour::create(ConsoleColour::CLR_LIGHT_BLUE) . $token[1] . ConsoleColour::reset();
+		foreach (SyntaxHighlight::$HIGHLIGHTS as $highlight) {
+			if (is_array($token)) {
+				if (in_array($token[0], $highlight['members'])) {
+					$token[1] = ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token[1] . ConsoleColour::reset();
+
+					return $token;
+				}
+			} else {
+				if (in_array($token, $highlight['members'])) {
+					return  ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token . ConsoleColour::reset();
+				}
+			}
 		}
 
 		return $token;
@@ -177,7 +191,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 					$currentLine .= $token[1];
 				}
 			} else {
-				$currentLine .= $token;
+				$currentLine .= self::syntaxHighlight($token);;
 			}
 		}
 
