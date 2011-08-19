@@ -32,4 +32,16 @@ class MyClass {
 		}
 ?><p>Whitespace destroyed</p><?php
 	}
+
+	public function test()
+	{
+		$a = 5;
+		$b = 7;
+		$this->foo = "hello";
+		$c = 'fred';
+		$d = "hello $c";
+		$e = true;
+		$f = FALSE;
+		$g = null;
+	}
 }

@@ -33,5 +33,17 @@ class MyClass
 	{
 		return false;
 	}
+
+	public function test()
+	{
+		$a = 5;
+		$b = 7;
+		$this->quux = "hello";
+		$c = 'fred';
+		$d = "hello $c";
+		$e = true;
+		$f = FALSE;
+		$g = null;
+	}
 }
 
