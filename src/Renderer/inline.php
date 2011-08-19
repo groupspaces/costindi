@@ -65,17 +65,6 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	}
 
 	/**
-	 * We don't indicate same lines, no need for indenting, so simply a wrapper around __lines()
-	 *
-	 * @see Text_Diff_Renderer::_context()
-	 */
-	public function _context($lines)
-	{
-		return $this->_lines($lines, '');
-	}
-
-
-	/**
 	 * Handle a copy diff
 	 *
 	 * @see Text_Diff_Renderer::_lines()
@@ -146,83 +135,119 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $this->_deleted($orig) . $this->_added($final);
 	}
 
+	protected static function syntaxHighlight($token)
+	{
+		if ($token[0] == T_CLASS) {
+			$token[1] = ConsoleColour::create(ConsoleColour::CLR_LIGHT_BLUE) . $token[1] . ConsoleColour::reset();
+		}
+
+		return $token;
+	}
+
+	protected static function bufferCopy(array $tokens)
+	{
+		$result = array();
+		$currentLine = '';
+
+		foreach ($tokens as $token) {
+			if (is_array($token)) {
+				$token = self::syntaxHighlight($token);
+
+				if ($token[1] == "\n") {
+					$result[] = $currentLine . "\n";
+					$currentLine = '';
+				} elseif (strpos($token[1], "\n") !== false) {
+					$lines = explode("\n", $token[1]);
+
+					array_unshift($lines, '');
+
+					foreach ($lines as $line) {
+						if (!empty($currentLine)) {
+							$line = $currentLine . $line;
+							$currentLine = '';
+						}
+
+						if (empty($line)) {
+							$result[] = "\n";
+						} else {
+							$result[] = $line;
+						}
+					}
+				} else {
+					$currentLine .= $token[1];
+				}
+			} else {
+				$currentLine .= $token;
+			}
+		}
+
+		if (!empty($currentLine)) {
+			$result[] = $currentLine;
+		}
+
+		return $result;
+	}
+
 	/**
 	 * Renders a diff
 	 *
 	 * @param   Text_Diff  $diff  A Text_Diff object.
-	 * @return  string     The formatted output.
+	 * @return  string	 The formatted output.
 	 */
 	function render($diff)
 	{
-		$xi = $yi = 1;
-		$block = false;
-		$context = array();
+		$output = '';
+		$buffer = array();
 
-		$nlead = $this->_leading_context_lines;
-		$ntrail = $this->_trailing_context_lines;
+		foreach ($diff->getDiff() as $edit) {
+			switch (strtolower(get_class($edit))) {
+			case 'text_diff_op_copy':
+				$buffer = array_merge($buffer, self::bufferCopy($edit->orig));
 
-		$output = $this->_startDiff();
-
-		$diffs = $diff->getDiff();
-		foreach ($diffs as $i => $edit) {
-			/* If these are unchanged (copied) lines, and we want to keep
-			 * leading or trailing context lines, extract them from the copy
-			 * block. */
-			if (is_a($edit, 'Text_Diff_Op_copy')) {
-				/* Do we have any diff blocks yet? */
-				if (is_array($block)) {
-					/* How many lines to keep as context from the copy
-					 * block. */
-					$keep = $i == count($diffs) - 1 ? $ntrail : $nlead + $ntrail;
-					if (count($edit->orig) <= $keep) {
-						/* We have less lines in the block than we want for
-						 * context => keep the whole block. */
-						$block[] = $edit;
-					} else {
-						if ($ntrail) {
-							/* Create a new block with as many lines as we need
-							 * for the trailing context. */
-							$context = array_slice($edit->orig, 0, $ntrail);
-							$block[] = new Text_Diff_Op_copy($context);
-						}
-						/* @todo */
-						$output .= $this->_block($x0, $ntrail + $xi - $x0,
-												 $y0, $ntrail + $yi - $y0,
-												 $block);
-						$block = false;
+				if (count($buffer) >= $this->_trailing_context_lines) {
+					foreach (array_slice($buffer, $this->_trailing_context_lines) as $line) {
+						$output .= $line;
 					}
-				}
-				/* Keep the copy block as the context for the next block. */
-				$context = $edit->orig;
-			} else {
-				/* Don't we have any diff blocks yet? */
-				if (!is_array($block)) {
-					/* Extract context lines from the preceding copy block. */
-					$context = array_slice($context, count($context) - $nlead);
-					$x0 = $xi - count($context);
-					$y0 = $yi - count($context);
-					$block = array();
-					if ($context) {
-						$block[] = new Text_Diff_Op_copy($context);
-					}
-				}
-				$block[] = $edit;
-			}
 
-			if ($edit->orig) {
-				$xi += count($edit->orig);
-			}
-			if ($edit->final) {
-				$yi += count($edit->final);
+					$buffer = array();
+				}
+				break;
+
+			case 'text_diff_op_add':
+				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
+					$output .= $line;
+				}
+
+				$buffer = array();
+				$output .= $this->_added($edit->final);
+				break;
+
+			case 'text_diff_op_delete':
+				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
+					$output .= $line;
+				}
+
+				$buffer = array();
+				$output .= $this->_deleted($edit->orig);
+				break;
+
+			case 'text_diff_op_change':
+				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
+					$output .= $line;
+				}
+
+				$buffer = array();
+				$output .= $this->_changed($edit->orig, $edit->final);
+				break;
 			}
 		}
 
-		if (is_array($block)) {
-			$output .= $this->_block($x0, $xi - $x0,
-									 $y0, $yi - $y0,
-									 $block);
+		if (count($buffer) > 0) {
+			foreach ($buffer as $line) {
+				$output .= $line;
+			}
 		}
 
-		return $output . $this->_endDiff();
+		return $output;
 	}
 }
