@@ -34,7 +34,6 @@ $d = new TokenListDiff(
 	$newfile
 );
 
-
 $c = popen('git config costindi.highlight', 'r');
 $highlight = trim(fgets($c, 128));
 pclose($c);
@@ -45,4 +44,4 @@ echo basename(__FILE__) . ' ' . $oldfile . ' ' . $newfile . PHP_EOL;
 echo $r->getColour('DEL') . '--- ' . $oldfile . ConsoleColour::reset() . PHP_EOL;
 echo $r->getColour('ADD') . '+++ ' . $newfile . ConsoleColour::reset() . PHP_EOL;
 
-echo $r->render($d);
+echo $r->render($d) . PHP_EOL;
