@@ -1,5 +1,6 @@
 <?php
 
+require_once(__DIR__.'/Token.php');
 require_once(dirname(__DIR__).'/lib/pear/Text/Diff.php');
 
 /**
@@ -15,9 +16,6 @@ class TokenListDiff
 	protected $tokensOrig = array();
 	/** @var  array  $tokensFinal  Final set of tokens */
 	protected $tokensFinal = array();
-
-	protected $origLineNumbers = array();
-	protected $finalLineNumbers = array();
 
 	/**
 	 * Constructor.
@@ -113,46 +111,47 @@ class TokenListDiff
 	 * @param   array  $tokens  Array of input tokens to serialize
 	 * @return  array  Text_Diff_Op objects
 	 */
-	protected static function formatTokens(array $tokens, &$lineNumbers)
+	protected static function formatTokens(array $tokens)
 	{
 		$results = array();
 
-		foreach ($tokens as $token) {
-			if (is_array($token)) {
-				// discard line number from the tokenizer, not useful for diff
-				$lineNumbers[] = $token[2];
-				unset($token[2]);
+		foreach ($tokens as $tok) {
+			$token = new Token($tok);
+			$content = $token->getContent();
+			$type = $token->getType();
 
+			if (is_array($tok)) {
+				$currentLine = $tok[2];
+			} else {
+				$token->setLineNumber($currentLine);
+			}
+
+			if ($type == T_DOC_COMMENT) {
 				// we don't care about the difference between these
-				if ($token[0] == T_DOC_COMMENT) {
-					$token[0] = T_COMMENT;
-				}
+				$token->setType(T_COMMENT);
+			}
 
-				if ($token[0] != T_WHITESPACE && strpos($token[1], "\n") !== false) {
-					// multi-line, non-whitespace token, need to convert into multiple, single line tokens
-					$split = explode("\n", $token[1]);
-					$c = count($split);
-					for ($i = 0; $i < $c; $i++) {
-						if (preg_match("/^(\s+)(\S.*)/", $split[$i], $matches)) {
-							// handle leading whitespace
-							$results[] = serialize(array(T_WHITESPACE, $matches[1]));
-							$results[] = serialize(array($token[0], $matches[2]));
-						} elseif ($split[$i] !== '') {
-							$results[] = serialize(array($token[0], $split[$i]));
-						}
+			if ($type != T_WHITESPACE && strpos($content, "\n") !== false) {
+				// multi-line, non-whitespace token, need to convert into multiple, single line tokens
+				$split = explode("\n", $content);
 
-						if ($i != $c - 1) {
-							// restore newlines lost by explode()ing
-							$results[] = serialize(array(T_WHITESPACE, "\n"));
-						}
+				$c = count($split);
+				for ($i = 0; $i < $c; $i++) {
+					if (preg_match("/^(\s+)(\S.*)/", $split[$i], $matches)) {
+						// handle leading whitespace
+						$results[] = new Token(array(T_WHITESPACE, $matches[1], $currentLine + $i));
+						$results[] = new Token(array($type, $matches[2], $currentLine + $i));
+					} elseif ($split[$i] !== '') {
+						$results[] = new Token(array($type, $split[$i], $currentLine + $i));
 					}
-				} else {
-					// single line or whitespace token
-					$results[] = serialize($token);
+
+					if ($i != $c - 1) {
+						// restore newlines lost by explode()ing
+						$results[] = new Token(array(T_WHITESPACE, "\n", $current));
+					}
 				}
 			} else {
-				// non-identified token (single char, eg braces)
-				$results[] = serialize($token);
+				$results[] = $token;
 			}
 		}
 
@@ -170,7 +169,7 @@ class TokenListDiff
 	protected static function postProcessDiffAdd(array $final)
 	{
 		foreach ($final as $entry) {
-			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+			if ($entry->getType() != T_WHITESPACE) {
 				// found a non-whitespace add, can't translate
 				return array(new Text_Diff_Op_add($final));
 			}
@@ -191,7 +190,7 @@ class TokenListDiff
 	protected static function postProcessDiffDelete(array $orig)
 	{
 		foreach ($orig as $entry) {
-			if (!is_array($entry) || $entry[0] != T_WHITESPACE) {
+			if ($entry->getType() != T_WHITESPACE) {
 				// found a non-whitespace delete, can't translate
 				return array(new Text_Diff_Op_delete($orig));
 			}
@@ -217,7 +216,8 @@ class TokenListDiff
 		$results = array();
 
 		// determine initial context
-		if (is_array($diff->final[0]) && $diff->final[0][0] == T_WHITESPACE && is_array($diff->orig[0]) && $diff->orig[0][0] == T_WHITESPACE) {
+
+		if ($diff->final[0]->getType() == T_WHITESPACE && $diff->orig[0]->getType() == T_WHITESPACE) {
 			$context = 'whitespace';
 		} else {
 			$context = 'nonwhitespace';
@@ -226,7 +226,6 @@ class TokenListDiff
 		$origAccumulator = array();
 		$finalAccumulator = array();
 
-		// we try as
 		$iter = max(count($diff->final), count($diff->orig));
 
 		for ($i = 0; $i < $iter; $i++) {
@@ -234,7 +233,7 @@ class TokenListDiff
 				$orig = $diff->orig[$i];
 				$final = $diff->final[$i];
 
-				if (is_array($final) && $final[0] == T_WHITESPACE && is_array($orig) && $orig[0] == T_WHITESPACE) {
+				if ($final->getType() == T_WHITESPACE && $orig->getType() == T_WHITESPACE) {
 					if ($context != 'whitespace') {
 						// accumulated non-whitespace, keep the change
 						$results[] =  new Text_Diff_Op_change($origAccumulator, $finalAccumulator);
@@ -287,39 +286,18 @@ class TokenListDiff
 		return $results;
 	}
 
-	public static function postProcessToken($token, &$lineNumbers)
-	{
-		return array_map(function($tok) use (&$lineNumbers) {
-					$tok = unserialize($tok);
-					if (is_array($tok)) {
-						$tok[] = array_shift($lineNumbers);
-					}
-
-					return $tok;
-				}, $token);
-	}
-
 	/**
 	 * Process an array of diffs in a white-space and code-style agnostic way
-	 * - unserliases the diffed tokens
-	 * - stitch back in the line numbers
+	 * - unserialises the diffed tokens
 	 *
 	 * @param   array $diffs  Text_Diff_Op objects
 	 * @return  array         Text_Diff_Op objects
 	 */
-	public static function postprocessDiff(array $diffs, $origLineNumbers, $finalLineNumbers)
+	public static function postprocessDiff(array $diffs)
 	{
 		$results = array();
 
 		foreach ($diffs as $diff) {
-			if (is_array($diff->orig)) {
-				$diff->orig = self::postProcessToken($diff->orig, &$origLineNumbers);
-			}
-
-			if (is_array($diff->final)) {
-				$diff->final = self::postProcessToken($diff->final, &$finalLineNumbers);
-			}
-
 			switch (get_class($diff)) {
 				case 'Text_Diff_Op_copy':
 					$results[] = $diff;
@@ -350,11 +328,11 @@ class TokenListDiff
 		if (!is_array($this->tokensOrig) || !is_array($this->tokensFinal)) {
 			throw new InvalidArgumentException('You need to set the inputs first');
 		}
-		$tokensOrig = self::formatTokens($this->tokensOrig, &$this->origLineNumbers);
-		$tokensFinal = self::formatTokens($this->tokensFinal, &$this->finalLineNumbers);
+		$tokensOrig = self::formatTokens($this->tokensOrig);
+		$tokensFinal = self::formatTokens($this->tokensFinal);
 
 		$differ = new Text_Diff('native', array($tokensOrig, $tokensFinal));
 
-		return self::postprocessDiff($differ->getDiff(), $this->origLineNumbers, $this->finalLineNumbers);
+		return self::postprocessDiff($differ->getDiff());
 	}
 }

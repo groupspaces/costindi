@@ -79,11 +79,8 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	{
 		$res = '';
 
-		foreach ($final as $data) {
-			if (is_array($data)) {
-				$data = $data[1];
-			}
-			$res .= $data;
+		foreach ($final as $token) {
+			$res .= self::syntaxHighlight($token);
 		}
 
 		return $res;
@@ -103,12 +100,8 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		$colour = $this->getColour($action);
 		$reset = $this->getReset();
 
-		foreach ($lines as $data) {
-			if (is_array($data)) {
-				$data = $data[1];
-			}
-
-			$res .= $colour . str_replace("\n", $reset . "\n" . $colour, $data) . $reset;
+		foreach ($lines as $token) {
+			$res .= $colour . str_replace("\n", $reset . "\n" . $colour, $token->getContent()) . $reset;
 		}
 
 		return $res;
@@ -145,124 +138,42 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	{
 		if ($this->_enableSyntaxHighlighting) {
 			foreach (SyntaxHighlight::$HIGHLIGHTS as $highlight) {
-				if (is_array($token)) {
-					if (in_array($token[0], $highlight['members'])) {
-						$token[1] = ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token[1] . ConsoleColour::reset();
-
-						return $token;
-					}
-				} else {
-					if (in_array($token, $highlight['members'])) {
-						return  ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token . ConsoleColour::reset();
-					}
+				if (in_array($token->getType(), $highlight['members']) || in_array($token->getContent(), $highlight['members'])) {
+					return ConsoleColour::create($highlight['foreground'], $highlight['background']) . $token->getContent() . ConsoleColour::reset();
 				}
 			}
 		}
 
-		return $token;
-	}
-
-	protected function bufferCopy(array $tokens)
-	{
-		$result = array();
-		$currentLine = '';
-
-		foreach ($tokens as $token) {
-			if (is_array($token)) {
-				$token = $this->syntaxHighlight($token);
-
-				if ($token[1] == "\n") {
-					$result[] = $currentLine . "\n";
-					$currentLine = '';
-				} elseif (strpos($token[1], "\n") !== false) {
-					$lines = explode("\n", $token[1]);
-
-					array_unshift($lines, '');
-
-					foreach ($lines as $line) {
-						if (!empty($currentLine)) {
-							$line = $currentLine . $line;
-							$currentLine = '';
-						}
-
-						if (empty($line)) {
-							$result[] = "\n";
-						} else {
-							$result[] = $line;
-						}
-					}
-				} else {
-					$currentLine .= $token[1];
-				}
-			} else {
-				$currentLine .= $this->syntaxHighlight($token);;
-			}
-		}
-
-		if (!empty($currentLine)) {
-			$result[] = $currentLine;
-		}
-
-		return $result;
+		return $token->getContent();
 	}
 
 	/**
 	 * Renders a diff
 	 *
-	 * @param   Text_Diff  $diff  A Text_Diff object.
-	 * @return  string	 The formatted output.
+	 * @param   Text_Diff  $diff  A Text_Diff object
+	 * @return  string	   The formatted output
 	 */
 	function render($diff)
 	{
 		$output = '';
-		$buffer = array();
 
 		foreach ($diff->getDiff() as $edit) {
 			switch (strtolower(get_class($edit))) {
 			case 'text_diff_op_copy':
-				$buffer = array_merge($buffer, $this->bufferCopy($edit->orig));
-
-				if (count($buffer) >= $this->_trailing_context_lines) {
-					foreach (array_slice($buffer, $this->_trailing_context_lines) as $line) {
-						$output .= $line;
-					}
-
-					$buffer = array();
-				}
+				$output .= $this->_lines($edit->final);
 				break;
 
 			case 'text_diff_op_add':
-				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
-					$output .= $line;
-				}
-
-				$buffer = array();
 				$output .= $this->_added($edit->final);
 				break;
 
 			case 'text_diff_op_delete':
-				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
-					$output .= $line;
-				}
-
-				$buffer = array();
 				$output .= $this->_deleted($edit->orig);
 				break;
 
 			case 'text_diff_op_change':
-				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
-					$output .= $line;
-				}
-
-				$buffer = array();
 				$output .= $this->_changed($edit->orig, $edit->final);
 				break;
-			}
-		}
-
-		if (count($buffer) > 0) {
-			foreach ($buffer as $line) {
-				$output .= $line;
 			}
 		}
 
