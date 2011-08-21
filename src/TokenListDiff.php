@@ -16,6 +16,9 @@ class TokenListDiff
 	/** @var  array  $tokensFinal  Final set of tokens */
 	protected $tokensFinal = array();
 
+	protected $origLineNumbers = array();
+	protected $finalLineNumbers = array();
+
 	/**
 	 * Constructor.
 	 *
@@ -110,13 +113,14 @@ class TokenListDiff
 	 * @param   array  $tokens  Array of input tokens to serialize
 	 * @return  array  Text_Diff_Op objects
 	 */
-	protected static function formatTokens(array $tokens)
+	protected static function formatTokens(array $tokens, &$lineNumbers)
 	{
 		$results = array();
 
 		foreach ($tokens as $token) {
 			if (is_array($token)) {
 				// discard line number from the tokenizer, not useful for diff
+				$lineNumbers[] = $token[2];
 				unset($token[2]);
 
 				// we don't care about the difference between these
@@ -283,23 +287,37 @@ class TokenListDiff
 		return $results;
 	}
 
+	public static function postProcessToken($token, &$lineNumbers)
+	{
+		return array_map(function($tok) use (&$lineNumbers) {
+					$tok = unserialize($tok);
+					if (is_array($tok)) {
+						$tok[] = array_shift($lineNumbers);
+					}
+
+					return $tok;
+				}, $token);
+	}
+
 	/**
 	 * Process an array of diffs in a white-space and code-style agnostic way
+	 * - unserliases the diffed tokens
+	 * - stitch back in the line numbers
 	 *
 	 * @param   array $diffs  Text_Diff_Op objects
 	 * @return  array         Text_Diff_Op objects
 	 */
-	public static function postprocessDiff(array $diffs)
+	public static function postprocessDiff(array $diffs, $origLineNumbers, $finalLineNumbers)
 	{
 		$results = array();
 
 		foreach ($diffs as $diff) {
 			if (is_array($diff->orig)) {
-				$diff->orig = array_map('unserialize', $diff->orig);
+				$diff->orig = self::postProcessToken($diff->orig, &$origLineNumbers);
 			}
 
 			if (is_array($diff->final)) {
-				$diff->final = array_map('unserialize', $diff->final);
+				$diff->final = self::postProcessToken($diff->final, &$finalLineNumbers);
 			}
 
 			switch (get_class($diff)) {
@@ -332,11 +350,11 @@ class TokenListDiff
 		if (!is_array($this->tokensOrig) || !is_array($this->tokensFinal)) {
 			throw new InvalidArgumentException('You need to set the inputs first');
 		}
-		$tokensOrig = self::formatTokens($this->tokensOrig);
-		$tokensFinal = self::formatTokens($this->tokensFinal);
+		$tokensOrig = self::formatTokens($this->tokensOrig, &$this->origLineNumbers);
+		$tokensFinal = self::formatTokens($this->tokensFinal, &$this->finalLineNumbers);
 
 		$differ = new Text_Diff('native', array($tokensOrig, $tokensFinal));
 
-		return self::postprocessDiff($differ->getDiff());
+		return self::postprocessDiff($differ->getDiff(), $this->origLineNumbers, $this->finalLineNumbers);
 	}
 }
