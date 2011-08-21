@@ -64,11 +64,12 @@ class Text_Diff_Engine_native {
 
         // Ignore lines which do not exist in both files.
         for ($xi = $skip; $xi < $n_from - $endskip; $xi++) {
-            $xhash[$from_lines[$xi]] = 1;
+            $xhash[(string) $from_lines[$xi]] = 1;
         }
         for ($yi = $skip; $yi < $n_to - $endskip; $yi++) {
-            $line = $to_lines[$yi];
-            if (($this->ychanged[$yi] = empty($xhash[$line]))) {
+            $line = (string) $to_lines[$yi];
+            $data = (string) $xhash[$line];
+            if (($this->ychanged[$yi] = empty($data))) {
                 continue;
             }
             $yhash[$line] = 1;
@@ -76,8 +77,9 @@ class Text_Diff_Engine_native {
             $this->yind[] = $yi;
         }
         for ($xi = $skip; $xi < $n_from - $endskip; $xi++) {
-            $line = $from_lines[$xi];
-            if (($this->xchanged[$xi] = empty($yhash[$line]))) {
+            $line = (string) $from_lines[$xi];
+            $data = (string) $yhash[$line];
+            if (($this->xchanged[$xi] = empty($data))) {
                 continue;
             }
             $this->xv[] = $line;
