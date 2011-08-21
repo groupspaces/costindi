@@ -40,6 +40,15 @@ pclose($c);
 
 $r = new TokenListDiff_Renderer_inline(array('enableSyntaxHighlighting' => ($highlight == 'true')));
 
+$r->setColours(array(
+	'ADD_FG'      => array(0, 50, 0),                 // green background
+	'ADD_BG'      => ConsoleColour::CLR_WHITE,
+	'ADD_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
+	'DEL_FG'      => array(50, 0, 0),                 // red foreground
+	'DEL_BG'      => ConsoleColour::CLR_WHITE,
+	'DEL_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
+));
+
 echo basename(__FILE__) . ' ' . $oldfile . ' ' . $newfile . PHP_EOL;
 echo $r->getColour('DEL') . '--- ' . $oldfile . ConsoleColour::reset() . PHP_EOL;
 echo $r->getColour('ADD') . '+++ ' . $newfile . ConsoleColour::reset() . PHP_EOL;

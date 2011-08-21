@@ -18,17 +18,17 @@ use Costindi\SyntaxHighlight as SyntaxHighlight;
 class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 {
 	/** @var  integer  Number of leading context "lines" to preserve. */
-	public $_leading_context_lines = 10000;
+	public $_leading_context_lines  = 10000;
 	/** @var  integer  Number of trailing context "lines" to preserve. */
 	public $_trailing_context_lines = 10000;
 
-	/** @var  array	   Colours to use to highlight adds and deletes */
-	public $_colours = array(
-		'ADD_FG' => 255,
-		'ADD_BG' => 22,   // green background
+	/** @var  array	   Default colours to use to highlight adds and deletes */
+	protected $colours = array(
+		'ADD_FG'      => ConsoleColour::CLR_WHITE,
+		'ADD_BG'      => array(0, 50, 0),                 // green background
 		'ADD_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
-		'DEL_FG' => 255,
-		'DEL_BG' => 52,   // red background
+		'DEL_FG'      => ConsoleColour::CLR_WHITE,
+		'DEL_BG'      => array(50, 0, 0),                 // red background
 		'DEL_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
 	);
 
@@ -36,8 +36,12 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	protected $colour = array('ADD' => null, 'DEL' => null);
 	/** @var  array    Cache of generated console reset codes */
 	protected $reset = null;
+	/** @var  integer  Current line number */
+	protected $currentLineNumber = 0;
 	/** @var  boolean  Whether to syntax highlight */
 	protected $_enableSyntaxHighlighting = false;
+	/** @var  booelan  Whether to show line numbers (experimental, and broken) */
+	protected $showLineNumbers = false;
 
 	/**
 	 * Get the console colour for 'ADD' or 'DEL'
@@ -49,7 +53,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	public function getColour($index)
 	{
 		if (!$this->colour[$index]) {
-			$this->colour[$index] = ConsoleColour::create($this->_colours[$index . '_FG'], $this->_colours[$index . '_BG'], $this->_colours[$index . '_ATTRIBS']);
+			$this->colour[$index] = ConsoleColour::create($this->colours[$index . '_FG'], $this->colours[$index . '_BG'], $this->colours[$index . '_ATTRIBS']);
 		}
 
 		return $this->colour[$index];
@@ -71,6 +75,30 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	}
 
 	/**
+	 * Set the diff highlighting colours
+	 * - one of (ADD|DEL)_(FG|BG|ATTRIBS)
+	 *
+	 * @param   array  $colours  Diff colours to set
+	 * @return  TokenListDiff_Renderer_inline
+	 */
+	public function setColours(array $colours)
+	{
+		$this->colours = $colours;
+
+		return $this;
+	}
+
+	/**
+	 * Get the diff highlighting colours
+	 *
+	 * @return array
+	 */
+	public function getColours()
+	{
+		return $this->colours;
+	}
+
+	/**
 	 * Handle a copy diff
 	 *
 	 * @see Text_Diff_Renderer::_lines()
@@ -80,7 +108,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		$res = '';
 
 		foreach ($final as $token) {
-			$res .= self::syntaxHighlight($token);
+			$res .= $this->processLine($token) . self::syntaxHighlight($token);
 		}
 
 		return $res;
@@ -101,7 +129,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		$reset = $this->getReset();
 
 		foreach ($lines as $token) {
-			$res .= $colour . str_replace("\n", $reset . "\n" . $colour, $token->getContent()) . $reset;
+			$res .= $this->processLine($token) . $colour . str_replace("\n", $reset . "\n" . $colour, $token->getContent()) . $reset;
 		}
 
 		return $res;
@@ -134,7 +162,13 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $this->_deleted($orig) . $this->_added($final);
 	}
 
-	protected function syntaxHighlight($token)
+	/**
+	 * Syntax highlight the token
+	 *
+	 * @param   Token $token  Token to process
+	 * @return  string
+	 */
+	protected function syntaxHighlight(Token $token)
 	{
 		if ($this->_enableSyntaxHighlighting) {
 			foreach (SyntaxHighlight::$HIGHLIGHTS as $highlight) {
@@ -145,6 +179,30 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		}
 
 		return $token->getContent();
+	}
+
+	/**
+	 * Process the token in the context of the current line, and output the line
+	 * number if needed
+	 * - experimental
+	 * - broken
+	 *
+	 * @param   Token  $token  Token to process
+	 * @return  string
+	 */
+	protected function processLine(Token $token)
+	{
+		if ($this->showLineNumbers) {
+			$line = $token->getLineNumber();
+
+			if ($line != $this->currentLineNumber) {
+				$this->currentLineNumber = $line;
+
+				return $line . ': ';
+			}
+		}
+
+		return '';
 	}
 
 	/**
