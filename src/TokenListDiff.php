@@ -147,7 +147,7 @@ class TokenListDiff
 
 					if ($i != $c - 1) {
 						// restore newlines lost by explode()ing
-						$results[] = new Token(array(T_WHITESPACE, "\n", $current));
+						$results[] = new Token(array(T_WHITESPACE, "\n", $currentLine));
 					}
 				}
 			} else {
