@@ -41,16 +41,16 @@ pclose($c);
 $r = new TokenListDiff_Renderer_inline(array('enableSyntaxHighlighting' => ($highlight == 'true')));
 
 $r->setColours(array(
-	'ADD_FG'      => array(0, 50, 0),                 // green background
-	'ADD_BG'      => ConsoleColour::CLR_WHITE,
+	'ADD_FG'      => array(0, 150, 0),                 // green background
+	'ADD_BG'      => null,
 	'ADD_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
-	'DEL_FG'      => array(50, 0, 0),                 // red foreground
-	'DEL_BG'      => ConsoleColour::CLR_WHITE,
+	'DEL_FG'      => array(150, 0, 0),                 // red foreground
+	'DEL_BG'      => null,
 	'DEL_ATTRIBS' => array(ConsoleColour::ATTR_BOLD),
 ));
 
-echo basename(__FILE__) . ' ' . $oldfile . ' ' . $newfile . PHP_EOL;
-echo $r->getColour('DEL') . '--- ' . $oldfile . ConsoleColour::reset() . PHP_EOL;
-echo $r->getColour('ADD') . '+++ ' . $newfile . ConsoleColour::reset() . PHP_EOL;
+echo basename(__FILE__) . ' a/' . $newfile . ' b/' . $newfile . PHP_EOL;
+echo $r->getColour('DEL') . '---' . ConsoleColour::reset() . ' a/' . $newfile . PHP_EOL;
+echo $r->getColour('ADD') . '+++' . ConsoleColour::reset() . ' b/' . $newfile . PHP_EOL;
 
 echo $r->render($d) . PHP_EOL;
