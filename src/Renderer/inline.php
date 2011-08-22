@@ -18,9 +18,9 @@ use Costindi\SyntaxHighlight as SyntaxHighlight;
 class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 {
 	/** @var  integer  Number of leading context "lines" to preserve. */
-	public $_leading_context_lines  = 10000;
+	public $_leading_context_lines  = 1;
 	/** @var  integer  Number of trailing context "lines" to preserve. */
-	public $_trailing_context_lines = 10000;
+	public $_trailing_context_lines = 1;
 
 	/** @var  array	   Default colours to use to highlight adds and deletes */
 	protected $colours = array(
@@ -205,6 +205,25 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return '';
 	}
 
+	public function processCopyBuffer($final)
+	{
+		$buffer = array();
+
+		foreach ($final as $token) {
+			$content = $token->getContent();
+			$type = $token->getType();
+			$lineNumber = $token->getLineNumber();
+
+			if (!isset($buffer[$lineNumber])) {
+				$buffer[$lineNumber] = '';
+			}
+
+			$buffer[$lineNumber] .= self::syntaxHighlight($token);
+		}
+
+		return $buffer;
+	}
+
 	/**
 	 * Renders a diff
 	 *
@@ -215,13 +234,19 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	{
 		$output = '';
 
-		foreach ($diff->getDiff() as $edit) {
+		$diffs = $diff->getDiff();
+		$copyBuffer = array();
+
+		foreach ($diffs as $edit) {
 			switch (strtolower(get_class($edit))) {
 			case 'text_diff_op_copy':
-				$output .= $this->_lines($edit->final);
+				$buffer = $this->processCopyBuffer($edit->final);
 				break;
 
 			case 'text_diff_op_add':
+				foreach (array_slice($buffer, -$this->_leading_context_lines) as $line) {
+					$output .= $line;
+				}
 				$output .= $this->_added($edit->final);
 				break;
 
@@ -230,7 +255,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 				break;
 
 			case 'text_diff_op_change':
-				$output .= $this->_changed($edit->orig, $edit->final);
+				$editLine = $this->getLineNumber($edit->final);
 				break;
 			}
 		}
