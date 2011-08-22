@@ -68,8 +68,7 @@ class Text_Diff_Engine_native {
         }
         for ($yi = $skip; $yi < $n_to - $endskip; $yi++) {
             $line = (string) $to_lines[$yi];
-            $data = (string) $xhash[$line];
-            if (($this->ychanged[$yi] = empty($data))) {
+            if (($this->ychanged[$yi] = empty($xhash[$line]))) {
                 continue;
             }
             $yhash[$line] = 1;
@@ -78,8 +77,7 @@ class Text_Diff_Engine_native {
         }
         for ($xi = $skip; $xi < $n_from - $endskip; $xi++) {
             $line = (string) $from_lines[$xi];
-            $data = (string) $yhash[$line];
-            if (($this->xchanged[$xi] = empty($data))) {
+            if (($this->xchanged[$xi] = empty($yhash[$line]))) {
                 continue;
             }
             $this->xv[] = $line;
