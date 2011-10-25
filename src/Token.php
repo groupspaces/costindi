@@ -2,7 +2,7 @@
 
 /**
  * @author   Mark Schaschke (@epitomus)
- * @package  Costindo
+ * @package  Costindi
  */
 
 /** global constant to complement the tokens, means a bare character, eg {}, [] */

@@ -13,7 +13,7 @@ use Costindi\SyntaxHighlight as SyntaxHighlight;
  *
  * @author   Mark Schaschke (@epitomus)
  * @author   David Ingram   (@dmi)
- * @package  Costindo
+ * @package  Costindi
  */
 class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 {
