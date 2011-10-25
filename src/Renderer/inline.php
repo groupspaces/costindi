@@ -17,10 +17,10 @@ use Costindi\SyntaxHighlight as SyntaxHighlight;
  */
 class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 {
-	/** @var  integer  Number of leading context "lines" to preserve. */
-	public $_leading_context_lines  = 10000;
-	/** @var  integer  Number of trailing context "lines" to preserve. */
-	public $_trailing_context_lines = 10000;
+	/** @var  integer  Number of leading context lines to preserve. */
+	public $_leading_context_lines  = 2;
+	/** @var  integer  Number of trailing context lines to preserve. */
+	public $_trailing_context_lines = 2;
 
 	/** @var  array	   Default colours to use to highlight adds and deletes */
 	protected $colours = array(
@@ -38,6 +38,12 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 	protected $reset = null;
 	/** @var  integer  Current line number */
 	protected $currentLineNumber = 0;
+	/** @var  integer  Line number of last output context line */
+	protected $lastContextLineNumber = 0;
+	/** @var  array    Circular buffer for context lines */
+	protected $contextBuffer = array();
+	/** @var  int      Number of pending lines of trailing context */
+	protected $pendingTrailingContext = 0;
 	/** @var  boolean  Whether to syntax highlight */
 	protected $_enableSyntaxHighlighting = false;
 	/** @var  booelan  Whether to show line numbers (experimental, and broken) */
@@ -98,6 +104,19 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $this->colours;
 	}
 
+	public function _contextGetClean()
+	{
+		$result = '';
+		if ($this->contextBuffer) {
+			if ($this->lastContextLineNumber != $this->currentLineNumber) {
+				$result .= "@@@\n";
+			}
+			$result .= implode("", $this->contextBuffer);
+		}
+		$this->contextBuffer = array();
+		return $result;
+	}
+
 	/**
 	 * Handle a copy diff
 	 *
@@ -108,7 +127,22 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		$res = '';
 
 		foreach ($final as $token) {
-			$res .= $this->processLine($token) . self::syntaxHighlight($token);
+			$thisLine = $this->processLine($token) . self::syntaxHighlight($token);
+			if ($this->pendingTrailingContext) {
+				if ($this->_updateLineNumber($token)) {
+					--$this->pendingTrailingContext;
+					$this->lastContextLineNumber = $token->getLineNumber();
+				}
+				$res .= $thisLine;
+			} elseif ($this->_leading_context_lines) {
+				$len = count($this->contextBuffer) - 1;
+				if ($this->contextBuffer) {
+					$this->contextBuffer[$len] .= $thisLine;
+				} else {
+					$this->contextBuffer[] = $thisLine;
+				}
+				array_splice($this->contextBuffer, -3);
+			}
 		}
 
 		return $res;
@@ -181,6 +215,16 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		return $token->getContent();
 	}
 
+	protected function _updateLineNumber(Token $token) {
+		$line = $token->getLineNumber();
+
+		if ($line != $this->currentLineNumber) {
+			$this->currentLineNumber = $line;
+			return true;
+		}
+		return false;
+	}
+
 	/**
 	 * Process the token in the context of the current line, and output the line
 	 * number if needed
@@ -195,9 +239,7 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 		if ($this->showLineNumbers) {
 			$line = $token->getLineNumber();
 
-			if ($line != $this->currentLineNumber) {
-				$this->currentLineNumber = $line;
-
+			if ($this->_updateLineNumber($token)) {
 				return $line . ': ';
 			}
 		}
@@ -222,15 +264,21 @@ class TokenListDiff_Renderer_inline extends Text_Diff_Renderer
 				break;
 
 			case 'text_diff_op_add':
+				$output .= $this->_contextGetClean();
 				$output .= $this->_added($edit->final);
+				$this->pendingTrailingContext = $this->_trailing_context_lines + 1;
 				break;
 
 			case 'text_diff_op_delete':
+				$output .= $this->_contextGetClean();
 				$output .= $this->_deleted($edit->orig);
+				$this->pendingTrailingContext = $this->_trailing_context_lines + 1;
 				break;
 
 			case 'text_diff_op_change':
+				$output .= $this->_contextGetClean();
 				$output .= $this->_changed($edit->orig, $edit->final);
+				$this->pendingTrailingContext = $this->_trailing_context_lines + 1;
 				break;
 			}
 		}
